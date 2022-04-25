@@ -42,7 +42,7 @@ CALL :buildfile adminmenu.lua
 CALL :buildfile missiontimer.lua
 CALL :buildfile missiletrainer.lua
 :: CALL :buildfile supportaircraft.lua
-:: CALL :buildfile staticranges.lua
+CALL :buildfile staticranges.lua
 :: CALL :buildfile dynamicranges.lua
 :: CALL :buildfile movingtargets.lua
 :: CALL :buildfile ecs.lua

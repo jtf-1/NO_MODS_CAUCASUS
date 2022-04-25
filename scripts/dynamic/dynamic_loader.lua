@@ -6,7 +6,7 @@ env.info( "*** STARTING DYNAMIC LOADER ***" )
 
 
 local JTFbase = _G
-local __JTFfilepath = 'E:/GitHub/FUN-MAP_CAUCASUS/scripts/dynamic/'
+local __JTFfilepath = 'E:/GitHub/NO_MODS_CAUCASUS/scripts/dynamic/'
 
 __JTFLoader = {}
 

@@ -1,4 +1,4 @@
-env.info( '*** MISSION FILE BUILD DATE: 2022-04-24T17:28:54.03Z ***') 
+env.info( '*** MISSION FILE BUILD DATE: 2022-04-25T17:09:16.90Z ***') 
 env.info( "*** JTF-1 MOOSE MISSION SCRIPT START ***" )
 -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
 --- BEGIN INIT
@@ -490,6 +490,123 @@ function MissileTrainer:OnEventPlayerLeaveUnit(EventData)
 end
 
 --- END MISSILE TRAINER
+ 
+-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+--- BEGIN STATIC RANGE SECTION
+-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+
+-- @field #STATICRANGES
+local STATICRANGES = {}
+
+STATICRANGES.Defaults = {
+  strafeMaxAlt             = 1530, -- [5000ft] in metres. Height of strafe box.
+  strafeBoxLength          = 3000, -- [10000ft] in metres. Length of strafe box.
+  strafeBoxWidth           = 300, -- [1000ft] in metres. Width of Strafe pit box (from 1st listed lane).
+  strafeFoullineDistance   = 610, -- [2000ft] in metres. Min distance for from target for rounds to be counted.
+  strafeGoodPass           = 20, -- Min hits for a good pass.
+  rangeSoundFilesPath      = "Range Soundfiles/" -- Range sound files path in miz
+}
+
+-- Range targets table
+STATICRANGES.Ranges = {
+  { --RANGE GG33 START
+    rangeId               = "GG33",
+    rangeName             = "Range GG33",
+    rangeZone             = "GG33",
+    rangeControlFrequency = 250.000,
+    groups = {
+      "GG33_TAC_GROUP_01",
+      "GG33_TAC_GROUP_02",
+    },
+    units = {
+    },
+    strafepits = {
+    },
+  },--RANGE GG33 END
+  { --RANGE NL24 START
+    rangeId               = "NL24",
+    rangeName             = "Range NL24",
+    rangeZone             = "NL24",
+    rangeControlFrequency = 250.000,
+    groups = {
+      "NL24_TAC_GROUP_01",
+      "NL24_TAC_GROUP_02",
+      "NL24_TAC_GROUP_03",
+    },
+    units = {
+    },
+    statics = {
+      "NL24_STATIC_01",
+      "NL24_STATIC_02",
+      "NL24_STATIC_03",
+      "NL24_STATIC_04",
+      "NL24_STATIC_05",
+      "NL24_STATIC_06",
+      "NL24_STATIC_07",
+    },
+    strafepits = {
+    },
+  },--RANGE NL24 END
+}
+
+
+function STATICRANGES:AddStaticRanges(TableRanges)
+
+  for rangeIndex, rangeData in ipairs(TableRanges) do
+  
+    local rangeObject = "Range_" .. rangeData.rangeId
+
+    local range_zone = ( ZONE:FindByName(rangeData.rangeZone) and ZONE:FindByName(rangeData.rangeZone) or ZONE_POLYGON:FindByName(rangeData.rangeZone))
+    
+    self[rangeObject] = RANGE:New(rangeData.rangeName)
+    self[rangeObject]:DebugOFF()
+    self[rangeObject]:SetMaxStrafeAlt(self.Defaults.strafeMaxAlt)
+    self[rangeObject]:SetDefaultPlayerSmokeBomb(false)
+
+    if range_zone then
+      self[rangeObject]:SetRangeZone(range_zone)
+    end
+ 
+    if rangeData.groups ~= nil then -- add groups of targets
+      for tgtIndex, tgtName in ipairs(rangeData.groups) do
+        local tgtGroup = GROUP:FindByName(tgtName)
+        tgtGroup:SetAIOff()
+        self[rangeObject]:AddBombingTargetGroup(GROUP:FindByName(tgtName))
+      end
+    end
+    
+    if rangeData.units ~= nil then -- add individual targets
+      for tgtIndex, tgtName in ipairs(rangeData.units) do
+        local tgtUnit = UNIT:FindByName(tgtName)
+        local tgtGroup = tgtUnit:GetGroup()
+        tgtGroup:SetAIOff()
+      end
+      self[rangeObject]:AddBombingTargets( rangeData.units )
+    end
+    
+    if rangeData.statics ~= nil then -- add individual static targets
+      self[rangeObject]:AddBombingTargets( rangeData.statics )
+    end
+
+    if rangeData.strafepits ~= nil then -- add strafe targets
+      for strafepitIndex, strafepit in ipairs(rangeData.strafepits) do
+        self[rangeObject]:AddStrafePit(strafepit, self.Defaults.strafeBoxLength, self.Defaults.strafeBoxWidth, nil, true, self.Defaults.strafeGoodPass, self.Defaults.strafeFoullineDistance)
+      end  
+    end
+    
+    if rangeData.rangeControlFrequency ~= nil then
+      
+    end
+
+    self[rangeObject]:Start()
+  end
+
+end
+
+-- Create ranges
+STATICRANGES:AddStaticRanges(STATICRANGES.Ranges)
+
+--- END STATIC RANGES
  
 -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
 --- BEGIN MAIN
@@ -1163,86 +1280,7 @@ Spawn_Tanker_C130_Arco2:SetCallsign(CALLSIGN.Tanker.Arco, 2)
   :Start()
 
 -- END BOAT SECTION
--- XXX BEGIN RANGE SECTION
 
-
-
-------------------
---- GG33 Range ---
-------------------
-
-local bombtarget_GG33 = {
-        "RANGE_GG33_bombing_01", 
-        "RANGE_GG33_bombing_02",
-        "RANGE_GG33_bombing_03",
-        "RANGE_GG33_bombing_04",
-        "RANGE_GG33_TAC_01",
-        "RANGE_GG33_TAC_02",
-        "RANGE_GG33_TAC_03",
-        "RANGE_GG33_TAC_04",
-        "RANGE_GG33_TAC_05",
-        "RANGE_GG33_TAC_06",
-        "RANGE_GG33_TAC_07",
-        "RANGE_GG33_TAC_08",
-        "RANGE_GG33_TAC_09",
-        "RANGE_GG33_TAC_10",
-        "RANGE_GG33_TAC_11",
-        "RANGE_GG33_TAC_12",
-        "RANGE_GG33_TAC_13",
-        "RANGE_GG33_TAC_14",
-        "RANGE_GG33_TAC_15"
-}
-
-local strafepit_GG33 = {
-        "RANGE_GG33_Strafepit_A",
-        "RANGE_GG33_Strafepit_B"
-}
-
--- Range_GG33 = RANGE:New( "GG33 Range" )
--- fouldist_GG33 = Range_GG33:GetFoullineDistance( "RANGE_GG33_Strafepit_A", "RANGE_GG33_FoulLine_AB" )
--- Range_GG33:AddStrafePit( strafepit_GG33, 3000, 300, nil, true, 20, fouldist_GG33 )
--- Range_GG33:AddBombingTargets( bombtarget_GG33, 50 )
--- Range_GG33:Start()
-
-------------------
---- NL24 Range ---
-------------------
-
-local bombtarget_NL24={
-        "RANGE_NL24_NORTH_bombing", 
-        "RANGE_NL24_SOUTH_bombing",
-        "RANGE_NL24_TAC_01",
-        "RANGE_NL24_TAC_02",
-        "RANGE_NL24_TAC_03",
-        "RANGE_NL24_TAC_04",
-        "RANGE_NL24_TAC_05",
-        "RANGE_NL24_TAC_06",
-        "RANGE_NL24_TAC_07",
-        "RANGE_NL24_TAC_08",
-        "RANGE_NL24_TAC_09",
-        "RANGE_NL24_TAC_10"
-}
-
-local strafepit_NL24_NORTH={
-        "RANGE_NL24_strafepit_A",
-        "RANGE_NL24_strafepit_B"
-}
-
-local strafepit_NL24_SOUTH={
-        "RANGE_NL24_strafepit_C",
-        "RANGE_NL24_strafepit_D"
-}
-
--- Range_NL24 = RANGE:New( "NL24 Range" )
--- fouldist_NL24 = Range_NL24:GetFoullineDistance( "RANGE_NL24_strafepit_A", "RANGE_NL24_FoulLine_AB" )
--- Range_NL24:AddStrafePit( strafepit_NL24_NORTH, 3000, 300, nil, true, 20, fouldist_NL24 )
--- Range_NL24:AddStrafePit( strafepit_NL24_SOUTH, 3000, 300, nil, true, 20, fouldist_NL24 )
--- Range_NL24:AddBombingTargets( bombtarget_NL24, 50 )
--- Range_NL24:Start()
-
-
-
--- END RANGE SECTION
 -- BEGIN CAP SECTION
 
 
