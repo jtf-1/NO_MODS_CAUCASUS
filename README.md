@@ -40,8 +40,9 @@ Marshal: 285.675
 CVN-72 Abraham Lincoln:
 - BRC 280'
 - TACAN 74X 
-- ILCS: Channel 4
-- Tower/Paddles: 308.475 AM
+- ILCS Channel 4
+- LINK 4 336.0 MHz
+- Tower/Paddles 308.475 AM
  
 (Use CV Deck freq 274.075 to call AI Tower to request landing. This also activates lights at night)
 
