@@ -1,4 +1,4 @@
-env.info( '*** MISSION FILE BUILD DATE: 2022-04-25T17:09:16.90Z ***') 
+env.info( '*** MISSION FILE BUILD DATE: 2022-04-26T13:59:45.23Z ***') 
 env.info( "*** JTF-1 MOOSE MISSION SCRIPT START ***" )
 -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
 --- BEGIN INIT
@@ -401,23 +401,27 @@ MISSIONTIMER:AddSchedules()
 --- BEGIN MISSILE TRAINER
 -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
 
--- Create event handler
-MissileTrainer = EVENTHANDLER:New()
-MissileTrainer:HandleEvent(EVENTS.PlayerEnterAircraft)   --(EVENTS.Birth)
-MissileTrainer:HandleEvent(EVENTS.PlayerLeaveUnit)  -- (EVENTS.Dead)
+MTRAINER = {
+  menuadded = {},
+  MenuF10   = {},
+  safeZone = nil, -- safezone to use, otherwise nil --"ZONE_FOX"
+  launchZone = nil, -- launchzone to use, otherwise nil --"ZONE_FOX"
+  DefaultLaunchAlerts = false,
+  DefaultMissileDestruction = false,
+  DefaultLaunchMarks = false,
+  ExplosionDistance = 300,
+}
+-- Create MTRAINER container and defaults
 
+-- add event handler
+MTRAINER.eventHandler = EVENTHANDLER:New()
+MTRAINER.eventHandler:HandleEvent(EVENTS.PlayerEnterAircraft)
+MTRAINER.eventHandler:HandleEvent(EVENTS.PlayerLeaveUnit)
 
--- Create MissileTrainer container and defaults
-MissileTrainer.menuadded = {}
-MissileTrainer.MenuF10   = {}
-MissileTrainer.safeZone = "ZONE_FOX"
-MissileTrainer.launchZone = "ZONE_FOX"
-
-
-function MissileTrainer:GetPlayerUnitAndName(unitName)
-  if unitName ~= nil then
-    -- Get DCS unit from its name.
-    local DCSunit = Unit.getByName(unitName)
+-- check player is present and unit is alive
+function MTRAINER:GetPlayerUnitAndName(unitname)
+  if unitname ~= nil then
+    local DCSunit = Unit.getByName(unitname)
     if DCSunit then
       local playername=DCSunit:getPlayerName()
       local unit = UNIT:Find(DCSunit)
@@ -430,62 +434,95 @@ function MissileTrainer:GetPlayerUnitAndName(unitName)
   return nil,nil
 end
 
-MissileTrainer.fox = FOX:New() -- add new FOX class to the Missile Trainer
+-- add new FOX class to the Missile Trainer
+MTRAINER.fox = FOX:New()
 
 --- FOX Default Settings
-MissileTrainer.fox:SetDefaultLaunchAlerts(false) -- launcher alerts OFF
-  :SetDefaultMissileDestruction(false) -- missile destruction off
-  :SetDefaultLaunchMarks(false) -- launch map marks OFF
-  :SetExplosionDistance(300) -- distance from uit at which to destroy incoming missiles
-  :SetDebugOnOff() -- set debug on if true
-  :SetDisableF10Menu() -- remove default F10 menu as a custom menu will be used
-  -- :AddSafeZone(ZONE:New(MissileTrainer.safeZone)) -- zone in which players will be protected
-  -- :AddLaunchZone(ZONE:New(MissileTrainer.launchZone)) -- zone in which launches will be tracked
-  :Start() -- start the missile trainer
+MTRAINER.fox:SetDefaultLaunchAlerts(MTRAINER.DefaultLaunchAlerts)
+MTRAINER.fox:SetDefaultMissileDestruction(MTRAINER.DefaultMissileDestruction)
+MTRAINER.fox:SetDefaultLaunchMarks(MTRAINER.DefaultLaunchMarks)
+MTRAINER.fox:SetExplosionDistance(MTRAINER.ExplosionDistance)
+MTRAINER.fox:SetDebugOnOff()
+MTRAINER.fox:SetDisableF10Menu()
+
+-- zone in which players will be protected
+if MTRAINER.safeZone then
+  MTRAINER.fox:AddSafeZone(ZONE:New(MTRAINER.safeZone))
+end
+
+-- zone in which launches will be tracked
+if MTRAINER.launchZone then
+  MTRAINER.fox:AddLaunchZone(ZONE:New(MTRAINER.launchZone))
+end
+
+-- start the missile trainer
+MTRAINER.fox:Start()
 
 --- Toggle Launch Alerts and Destroy Missiles on/off
--- @param #MissileTrainer self
--- @param #string unitName name of client unit
-function MissileTrainer:ToggleMissileTrainer(unitName)
-  self.fox:_ToggleLaunchAlert(unitName)
-  self.fox:_ToggleDestroyMissiles(unitName)
+-- @param #string unitname name of client unit
+function MTRAINER:ToggleTrainer(unitname)
+  self.fox:_ToggleLaunchAlert(unitname)
+  self.fox:_ToggleDestroyMissiles(unitname)
 end
 
---- Add Missile Trainer F10 root menu.
--- @param #MissileTrainer self
--- @param #wrapper.Unit unit Unit object occupied by client
--- @param #string unitName Name of unit occupied by client
-function MissileTrainer:AddMenu(unit, unitName, state)
-  local group = unit:GetGroup()
-  local gid = group:GetID()
-
-  if state then
-    if not self.MenuF10[gid] then
-      self.MenuF10[gid] = missionCommands.addSubMenuForGroup(gid, "Missile Trainer")
-      local rootPath = self.MenuF10[gid]
-      missionCommands.addCommandForGroup(gid, "Missile Trainer On/Off", rootPath, self.ToggleMissileTrainer, MissileTrainer, unitName)
+--- Add Missile Trainer for GROUP|UNIT in F10 root menu.
+-- @param #string unitname Name of unit occupied by client
+function MTRAINER:AddMenu(unitname)
+  local unit, playername = self:GetPlayerUnitAndName(unitname)
+  if unit and playername then
+    local group = unit:GetGroup()
+    local gid = group:GetID()
+    local uid = unit:GetID()
+    if group and gid then
+      -- only add menu once!
+      if MTRAINER.menuadded[uid] == nil then
+        -- add GROUP menu if not already present
+        if MTRAINER.MenuF10[gid] == nil then
+          BASE:T("[MTRAINER] Adding menu for group: " .. group:GetName())
+          MTRAINER.MenuF10[gid] = MENU_GROUP:New(group, "Missile Trainer")
+        end
+        if MTRAINER.MenuF10[gid][uid] == nil then
+          BASE:T("[MTRAINER] Add submenu for player: " .. playername)
+          MTRAINER.MenuF10[gid][uid] = MENU_GROUP:New(group, playername, MTRAINER.MenuF10[gid])
+          BASE:T("[MTRAINER] Add commands for player: " .. playername)
+          MENU_GROUP_COMMAND:New(group, "Missile Trainer On/Off", MTRAINER.MenuF10[gid][uid], MTRAINER.ToggleTrainer, MTRAINER, unitname)
+          MENU_GROUP_COMMAND:New(group, "My Status", MTRAINER.MenuF10[gid][uid], MTRAINER.fox._MyStatus, MTRAINER.fox, unitname)
+        end
+        MTRAINER.menuadded[uid] = true
+      end
+    else
+      BASE:T(string.format("[MTRAINER] ERROR: Could not find group or group ID in AddMenu() function. Unit name: %s.", unitname))
     end
   else
-    self.MenuF10[gid]:Remove()
-    self.MenuF10[gid] = nil
+    BASE:T(string.format("[MTRAINER] ERROR: Player unit does not exist in AddMenu() function. Unit name: %s.", unitname))
   end
 end
 
-function MissileTrainer:OnEventPlayerEnterAircraft(EventData)
-  local unitName = EventData.IniUnitName
-  local unit, playername = MissileTrainer:GetPlayerUnitAndName(unitName)
-  
+-- handler for PlayEnterAircraft event.
+-- call function to add GROUP:UNIT menu.
+function MTRAINER.eventHandler:OnEventPlayerEnterAircraft(EventData) 
+  local unitname = EventData.IniUnitName
+  local unit, playername = MTRAINER:GetPlayerUnitAndName(unitname)
   if unit and playername then
-    SCHEDULER:New(nil, MissileTrainer.AddMenu, {MissileTrainer, unit, unitName, true},0.1)
+    SCHEDULER:New(nil, MTRAINER.AddMenu, {MTRAINER, unitname, true},0.1)
   end
 end
 
-function MissileTrainer:OnEventPlayerLeaveUnit(EventData)
-  local unitName = EventData.IniUnitName
-  local unit, playername = MissileTrainer:GetPlayerUnitAndName(unitname)
-
-  if unit and playername then
-    MissileTrainer:AddMenu(unit, unitname, false)
+-- handler for PlayerLeaveUnit event.
+-- remove GROUP:UNIT menu.
+function MTRAINER.eventHandler:OnEventPlayerLeaveUnit(EventData)
+  local playername = EventData.IniPlayerName
+  local unit = EventData.IniUnit
+  local gid = EventData.IniGroup:GetID()
+  local uid = EventData.IniUnit:GetID()
+  BASE:T("[MTRAINER] " .. playername .. " left unit:" .. unit:GetName() .. " UID: " .. uid)
+  if gid and uid then
+    if MTRAINER.MenuF10[gid] then
+      BASE:T("[MTRAINER] Removing menu for unit UID:" .. uid)
+      MTRAINER.MenuF10[gid][uid]:Remove()
+      MTRAINER.MenuF10[gid][uid] = nil
+      MTRAINER.menuadded[uid] = nil
+    end
   end
 end
 
@@ -607,6 +644,247 @@ end
 STATICRANGES:AddStaticRanges(STATICRANGES.Ranges)
 
 --- END STATIC RANGES
+ 
+------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+--- BEGIN ACM/BFM SECTION
+-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+
+--- AI ACM/BFM
+--
+-- ZONES: if zones are MOOSE polygon zones, zone name in mission editor MUST be suffixed with #ZONE_POLYGON
+-- 
+
+BFMACM = {
+  menuAdded = {},
+  menuF10 = {},
+  zoneBfmAcmName = "ZONE_BFMACM", -- The BFM/ACM Zone
+  zonesNoSpawnName = { -- zones inside BFM/ACM zone within which adversaries may NOT be spawned.
+  },
+  adversary = {
+    menu = { -- Adversary menu
+      {template = "ADV_MIG21", menuText = "Adversary MiG-21"},
+      {template = "ADV_MIG29", menuText = "Adversary MiG-29S"},
+      {template = "ADV_SU27", menuText = "Adversary Su-27"},
+      {template = "ADV_F16", menuText = "Adversary F-16"},
+      {template = "ADV_F18", menuText = "Adversary F-18"},
+    },
+    range = {5, 10, 20}, -- ranges at which to spawn adversaries in nautical miles
+    spawn = {}, -- container for aversary spawn objects
+    defaultRadio = "251",
+  },
+}
+
+BFMACM.rangeRadio = (JTF1.rangeRadio and JTF1.rangeRadio or BFMACM.defaultRadio)
+
+-- add event handler
+BFMACM.eventHandler = EVENTHANDLER:New()
+BFMACM.eventHandler:HandleEvent(EVENTS.PlayerEnterAircraft)
+BFMACM.eventHandler:HandleEvent(EVENTS.PlayerLeaveUnit)
+
+-- check player is present and unit is alive
+function BFMACM:GetPlayerUnitAndName(unitname)
+  if unitname ~= nil then
+    local DCSunit = Unit.getByName(unitname)
+    if DCSunit then
+      local playername=DCSunit:getPlayerName()
+      local unit = UNIT:Find(DCSunit)
+      if DCSunit and unit and playername then
+        return unit, playername
+      end
+    end
+  end
+  -- Return nil if we could not find a player.
+  return nil,nil
+end
+
+-- Add main BFMACM zone
+ _zone = ( ZONE:FindByName(BFMACM.zoneBfmAcmName) and ZONE:FindByName(BFMACM.zoneBfmAcmName) or ZONE_POLYGON:FindByName(BFMACM.zoneBfmAcmName))
+if _zone == nil then
+  _msg = "[BFMACM] ERROR: BFM/ACM Zone: " .. tostring(BFMACM.zoneBfmAcmName) .. " not found!"
+  BASE:E(_msg)
+else
+  BFMACM.zoneBfmAcm = _zone
+  _msg = "[BFMACM] BFM/ACM Zone: " .. tostring(BFMACM.zoneBfmAcmName) .. " added."
+  BASE:T(_msg)
+end
+
+-- Add spawn exclusion zone(s)
+if BFMACM.zonesNoSpawnName then
+  BFMACM.zonesNoSpawn = {}
+  for i, zoneNoSpawnName in ipairs(BFMACM.zonesNoSpawnName) do
+    _zone = (ZONE:FindByName(zoneNoSpawnName) and ZONE:FindByName(zoneNoSpawnName) or ZONE_POLYGON:FindByName(zoneNoSpawnName))
+    if _zone == nil then
+      _msg = "[BFMACM] ERROR: Exclusion zone: " .. tostring(zoneNoSpawnName) .. " not found!"
+      BASE:E(_msg)
+    else
+      BFMACM.zonesNoSpawn[i] = _zone
+      _msg = "[BFMACM] Exclusion zone: " .. tostring(zoneNoSpawnName) .. " added."
+      BASE:T(_msg)
+    end
+  end
+else
+  BASE:T("[BFMACM] No exclusion zones defined")
+end
+
+-- Add spawn objects
+for i, adversaryMenu in ipairs(BFMACM.adversary.menu) do
+  _adv = GROUP:FindByName(adversaryMenu.template)
+  if _adv then
+    BFMACM.adversary.spawn[adversaryMenu.template] = SPAWN:New(adversaryMenu.template)
+  else
+    _msg = "[BFMACM] ERROR: spawn template: " .. tostring(adversaryMenu.template) .. " not found!" .. tostring(zoneNoSpawnName) .. " not found!"
+    BASE:E(_msg)
+  end
+end
+
+-- Spawn adversaries
+function BFMACM.SpawnAdv(adv,qty,group,rng,unit)
+  local playerName = (unit:GetPlayerName() and unit:GetPlayerName() or "Unknown") 
+  local range = rng * 1852
+  local hdg = unit:GetHeading()
+  local pos = unit:GetPointVec2()
+  local spawnPt = pos:Translate(range, hdg, true)
+  local spawnVec3 = spawnPt:GetVec3()
+
+  -- check player is in BFM ACM zone.
+  local spawnAllowed = unit:IsInZone(BFMACM.zoneBfmAcm)
+  local msgNoSpawn = ", Cannot spawn adversary aircraft if you are outside the BFM/ACM zone!"
+
+  -- Check spawn location is not in an exclusion zone
+  if spawnAllowed then
+    if BFMACM.zonesNoSpawn then
+      for i, zoneExclusion in ipairs(BFMACM.zonesNoSpawn) do
+        spawnAllowed = not zoneExclusion:IsVec3InZone(spawnVec3)
+      end
+      msgNoSpawn = ", Cannot spawn adversary aircraft in an exclusion zone. Change course, or increase your range from the zone, and try again."
+    end
+  end
+
+  -- Check spawn location is inside the BFM/ACM zone
+  if spawnAllowed then
+    spawnAllowed = BFMACM.zoneBfmAcm:IsVec3InZone(spawnVec3)
+    msgNoSpawn = ", Cannot spawn adversary aircraft outside the BFM/ACM zone. Change course and try again."
+  end
+
+  -- Spawn the adversary, if not in an exclusion zone or outside the BFM/ACM zone.
+  if spawnAllowed then
+    BFMACM.adversary.spawn[adv]:InitGrouping(qty)
+    :InitHeading(hdg + 180)
+    :OnSpawnGroup(
+      function ( SpawnGroup )
+        local CheckAdversary = SCHEDULER:New( SpawnGroup, 
+        function (CheckAdversary)
+          if SpawnGroup then
+            if SpawnGroup:IsNotInZone( BFMACM.zoneBfmAcm ) then
+              local msg = "99 all players, BFM Adversary left BFM Zone and was removed!"
+              if MISSIONSRS.Radio then -- if MISSIONSRS radio object has been created, send message via default broadcast.
+                MISSIONSRS:SendRadio(msg,BFMACM.rangeRadio)
+              else -- otherwise, send in-game text message
+                MESSAGE:New(msg):ToAll()
+              end
+              --MESSAGE:New("Adversary left BFM Zone and was removed!"):ToAll()
+              SpawnGroup:Destroy()
+              SpawnGroup = nil
+            end
+          end
+        end,
+        {}, 0, 5 )
+      end
+    )
+    :SpawnFromVec3(spawnVec3)
+    local msg = "99 all players, " .. playerName .. " has spawned BFM Adversary."
+    if MISSIONSRS.Radio then -- if MISSIONSRS radio object has been created, send message via default broadcast.
+      MISSIONSRS:SendRadio(msg,BFMACM.rangeRadio)
+    else -- otherwise, send in-game text message
+      MESSAGE:New(msg):ToAll()
+    end
+    --MESSAGE:New(playerName .. " has spawned Adversary."):ToGroup(group)
+  else
+    local msg = playerName .. msgNoSpawn
+    if MISSIONSRS.Radio then -- if MISSIONSRS radio object has been created, send message via default broadcast.
+      MISSIONSRS:SendRadio(msg,BFMACM.rangeRadio)
+    else -- otherwise, send in-game text message
+      MESSAGE:New(msg):ToAll()
+    end
+    --MESSAGE:New(playerName .. msgNoSpawn):ToGroup(group)
+  end
+end
+  
+function BFMACM:AddMenu(unitname)
+  BASE:T("[BFMACM] AddMenu called.")
+  local unit, playername = BFMACM:GetPlayerUnitAndName(unitname)
+  if unit and playername then
+    local group = unit:GetGroup()
+    local gid = group:GetID()
+    local uid = unit:GetID()
+    if group and gid then
+      -- only add menu once!
+      if BFMACM.menuAdded[uid] == nil then
+        -- add GROUP menu if not already present
+        if BFMACM.menuF10[gid] == nil then
+          BASE:T("[BFMACM] Adding menu for group: " .. group:GetName())
+          BFMACM.menuF10[gid] = MENU_GROUP:New(group, "AI BFM/ACM")
+        end
+        if BFMACM.menuF10[gid][uid] == nil then
+          -- add playername submenu
+          BASE:T("[BFMACM] Add submenu for player: " .. playername)
+          BFMACM.menuF10[gid][uid] = MENU_GROUP:New(group, playername, BFMACM.menuF10[gid])
+          -- add adversary submenus and range selectors
+          BASE:T("[BFMACM] Add submenus and range selectors for player: " .. playername)
+          for iMenu, adversary in ipairs(BFMACM.adversary.menu) do
+            -- Add adversary type menu
+            BFMACM.menuF10[gid][uid][iMenu] = MENU_GROUP:New(group, adversary.menuText, BFMACM.menuF10[gid][uid])
+            -- Add single or pair selection for adversary type
+            BFMACM.menuF10[gid][uid][iMenu].single = MENU_GROUP:New(group, "Single", BFMACM.menuF10[gid][uid][iMenu])
+            BFMACM.menuF10[gid][uid][iMenu].pair = MENU_GROUP:New(group, "Pair", BFMACM.menuF10[gid][uid][iMenu])
+            -- select range at which to spawn adversary
+            for iCommand, range in ipairs(BFMACM.adversary.range) do
+                MENU_GROUP_COMMAND:New(group, tostring(range) .. " nm", BFMACM.menuF10[gid][uid][iMenu].single, BFMACM.SpawnAdv, adversary.template, 1, group, range, unit)
+                MENU_GROUP_COMMAND:New(group, tostring(range) .. " nm", BFMACM.menuF10[gid][uid][iMenu].pair, BFMACM.SpawnAdv, adversary.template, 2, group, range, unit)
+            end
+          end
+        end
+        BFMACM.menuAdded[uid] = true
+      end
+    else
+      BASE:T(string.format("[BFMACM] ERROR: Could not find group or group ID in AddMenu() function. Unit name: %s.", unitname))
+    end
+  else
+    BASE:T(string.format("[BFMACM] ERROR: Player unit does not exist in AddMenu() function. Unit name: %s.", unitname))
+  end
+end
+  
+-- handler for PlayEnterAircraft event.
+-- call function to add GROUP:UNIT menu.
+function BFMACM.eventHandler:OnEventPlayerEnterAircraft(EventData)
+  BASE:T("[BFMACM] PlayerEnterAircraft called.")
+  local unitname = EventData.IniUnitName
+  local unit, playername = BFMACM:GetPlayerUnitAndName(unitname)
+  if unit and playername then
+    BASE:T("[BFMACM] Player entered Aircraft: " .. playername)
+    SCHEDULER:New(nil, BFMACM.AddMenu, {BFMACM, unitname},0.1)
+  end
+end
+
+-- handler for PlayerLeaveUnit event.
+-- remove GROUP:UNIT menu.
+function BFMACM.eventHandler:OnEventPlayerLeaveUnit(EventData)
+  local playername = EventData.IniPlayerName
+  local unit = EventData.IniUnit
+  local gid = EventData.IniGroup:GetID()
+  local uid = EventData.IniUnit:GetID()
+  BASE:T("[BFMACM] " .. playername .. " left unit:" .. unit:GetName() .. " UID: " .. uid)
+  if gid and uid then
+    if BFMACM.menuF10[gid] then
+      BASE:T("[BFMACM] Removing menu for unit UID:" .. uid)
+      BFMACM.menuF10[gid][uid]:Remove()
+      BFMACM.menuF10[gid][uid] = nil
+      BFMACM.menuAdded[uid] = nil
+    end
+  end
+end
+
+--- END ACMBFM SECTION
  
 -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
 --- BEGIN MAIN

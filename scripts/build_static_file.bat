@@ -46,7 +46,7 @@ CALL :buildfile staticranges.lua
 :: CALL :buildfile dynamicranges.lua
 :: CALL :buildfile movingtargets.lua
 :: CALL :buildfile ecs.lua
-:: CALL :buildfile bfmacm.lua
+CALL :buildfile bfmacm.lua
 :: CALL :buildfile bvrgci.lua
 CALL :buildfile mission_main.lua
 CALL :buildfile mission_end.lua
