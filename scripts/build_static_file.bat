@@ -45,7 +45,7 @@ CALL :buildfile missiletrainer.lua
 CALL :buildfile staticranges.lua
 :: CALL :buildfile dynamicranges.lua
 :: CALL :buildfile movingtargets.lua
-:: CALL :buildfile ecs.lua
+CALL :buildfile ecs.lua
 CALL :buildfile bfmacm.lua
 :: CALL :buildfile bvrgci.lua
 CALL :buildfile mission_main.lua

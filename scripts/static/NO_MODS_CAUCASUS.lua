@@ -1,4 +1,4 @@
-env.info( '*** MISSION FILE BUILD DATE: 2022-04-26T13:59:45.23Z ***') 
+env.info( '*** MISSION FILE BUILD DATE: 2022-06-20T12:17:47.92Z ***') 
 env.info( "*** JTF-1 MOOSE MISSION SCRIPT START ***" )
 -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
 --- BEGIN INIT
@@ -309,7 +309,7 @@ function ADMIN:BuildAdminMenu(unit,playername)
     local testMenu = MENU_GROUP:New(adminGroup, "Test", adminMenu)
     for i, menuCommand in ipairs(ADMIN.missionList) do
       MENU_GROUP_COMMAND:New( adminGroup, menuCommand.menuText, adminMenu, ADMIN.LoadMission, self, playername, menuCommand.missionFlagValue )
-      MENU_GROUP_COMMAND:New( adminGroup, "SRS Broadcast test", testMenu, MISSIONSRS.SendRadio, MISSIONSRS, "99 all players, test broadcast over default radio.")
+      MENU_GROUP_COMMAND:New( adminGroup, "SRS Broadcast test", testMenu, MISSIONSRS.SendRadio, MISSIONSRS, "All Players, test broadcast over default radio.")
     end
   end
 end
@@ -351,7 +351,7 @@ function MISSIONTIMER:AddSchedules()
       self.msgWarning[i] = SCHEDULER:New( nil, 
         function()
           BASE:T("[MISSIONTIMER] TIMER WARNING CALLED at " .. tostring(msgTime) .. " minutes remaining.")
-          local msg = "99 all players, mission is scheduled to restart in  " .. msgTime .. " minutes!"
+          local msg = "All Players, mission is scheduled to restart in  " .. msgTime .. " minutes!"
           if MISSIONSRS.Radio then -- if MISSIONSRS radio object has been created, send message via default broadcast.
             MISSIONSRS:SendRadio(msg)
           else -- otherwise, send in-game text message
@@ -376,7 +376,7 @@ function MISSIONTIMER:Restart()
   end
   if self.clientList:CountAlive() > 0 then
     local delayTime = self.restartDelay
-    local msg  = "99 all players, mission will restart when no active clients are present. Next check will be in " .. tostring(delayTime) .." minutes." 
+    local msg  = "All Players, mission will restart when no active clients are present. Next check will be in " .. tostring(delayTime) .." minutes." 
     if MISSIONSRS.Radio then -- if MISSIONSRS radio object has been created, send message via default broadcast.
       MISSIONSRS:SendRadio(msg)
     else -- otherwise, send in-game text message
@@ -645,6 +645,105 @@ STATICRANGES:AddStaticRanges(STATICRANGES.Ranges)
 
 --- END STATIC RANGES
  
+-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+--- BEGIN ELECTRONIC COMBAT SIMULATOR RANGE
+-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+
+--- IADS
+-- REQUIRES MIST if IADS is used
+
+ECS = {}
+ECS.ActiveSite = {}
+ECS.rIADS = nil
+ECS.UseIads = false -- NOTE*** requires MIST if Skynet is used
+
+ECS.menuEscTop = MENU_COALITION:New(coalition.side.BLUE, "ECS")
+
+-- SAM spawn emplates
+ECS.templates = {
+  {templateName = "ECS_SA11", threatName = "SA-11"},
+  {templateName = "ECS_SA10", threatName = "SA-10"},
+  {templateName = "ECS_SA2",  threatName = "SA-2"},
+  {templateName = "ECS_SA3",  threatName = "SA-3"},
+  {templateName = "ECS_SA6",  threatName = "SA-6"},
+}
+-- Zone in which threat will be spawned
+ECS.zoneEcs = ZONE:FindByName("ECS_ZONE_1")
+
+
+function activateEcsThreat(samTemplate, samZone, activeThreat, isReset)
+
+  -- remove threat selection menu options
+  if not isReset then
+    ECS.menuEscTop:RemoveSubMenus()
+  end
+  
+  -- spawn threat in ECS zone
+  local ecsSpawn = SPAWN:New(samTemplate)
+  ecsSpawn:OnSpawnGroup(
+      function (spawnGroup)
+        MENU_COALITION_COMMAND:New(coalition.side.BLUE, "Deactivate ECS", ECS.menuEscTop, resetEcsThreat, spawnGroup, ecsSpawn, activeThreat, false)
+        MENU_COALITION_COMMAND:New(coalition.side.BLUE, "Reset ECS", ECS.menuEscTop, resetEcsThreat, spawnGroup, ecsSpawn, activeThreat, true, samZone)
+        local msg = "All Players, Electronic Combat Simulator Range is active with " .. activeThreat
+        if MISSIONSRS.Radio then -- if MISSIONSRS radio object has been created, send message via default broadcast.
+          MISSIONSRS:SendRadio(msg)
+        else -- otherwise, send in-game text message
+          MESSAGE:New(msg):ToAll()
+        end
+        --MESSAGE:New("EC South is active with " .. activeThreat):ToAll()
+        if ECS.UseIads then
+          ECS.rIADS = SkynetIADS:create("IadsECS")
+          ECS.rIADS:setUpdateInterval(5)
+          ECS.rIADS:addSAMSite(spawnGroup.GroupName)
+          ECS.rIADS:getSAMSiteByGroupName(spawnGroup.GroupName):setGoLiveRangeInPercent(80)
+          ECS.rIADS:activate()
+        end        
+      end
+      , ECS.menuEscTop, ecsSpawn, activeThreat, samZone --, rangePrefix
+    )
+    :SpawnInZone(samZone, true)
+end
+
+function resetEcsThreat(spawnGroup, ecsSpawn, activeThreat, refreshEcs, samZone)
+
+  ECS.menuEscTop:RemoveSubMenus()
+  
+  if (ECS.UseIads and ECS.rIADS ~= nil) then
+    ECS.rIADS:deactivate()
+    ECS.rIADS = nil
+  end
+
+  if spawnGroup:IsAlive() then
+    spawnGroup:Destroy()
+  end
+
+  if refreshEcs then
+    ecsSpawn:SpawnInZone(samZone, true)
+  else
+   addEcsThreatMenu()
+    local msg = "All Players, ECS "  .. activeThreat .." has been deactivated."
+    if MISSIONSRS.Radio then -- if MISSIONSRS radio object has been created, send message via default broadcast.
+      MISSIONSRS:SendRadio(msg)
+    else -- otherwise, send in-game text message
+      MESSAGE:New(msg):ToAll()
+    end
+    --MESSAGE:New("EC South "  .. activeThreat .." has been deactived."):ToAll()
+  end    
+
+end
+
+function addEcsThreatMenu()
+
+  for i, template in ipairs(ECS.templates) do
+    MENU_COALITION_COMMAND:New(coalition.side.BLUE, "Activate " .. template.threatName, ECS.menuEscTop, activateEcsThreat, template.templateName, ECS.zoneEcs, template.threatName)
+  end
+
+end
+
+addEcsThreatMenu()
+
+--- END ELECTRONIC COMBAT SIMULATOR RANGE
+ 
 ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
 --- BEGIN ACM/BFM SECTION
 -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
@@ -776,7 +875,7 @@ function BFMACM.SpawnAdv(adv,qty,group,rng,unit)
         function (CheckAdversary)
           if SpawnGroup then
             if SpawnGroup:IsNotInZone( BFMACM.zoneBfmAcm ) then
-              local msg = "99 all players, BFM Adversary left BFM Zone and was removed!"
+              local msg = "All Players, BFM Adversary left BFM Zone and was removed!"
               if MISSIONSRS.Radio then -- if MISSIONSRS radio object has been created, send message via default broadcast.
                 MISSIONSRS:SendRadio(msg,BFMACM.rangeRadio)
               else -- otherwise, send in-game text message
@@ -792,7 +891,7 @@ function BFMACM.SpawnAdv(adv,qty,group,rng,unit)
       end
     )
     :SpawnFromVec3(spawnVec3)
-    local msg = "99 all players, " .. playerName .. " has spawned BFM Adversary."
+    local msg = "All Players, " .. playerName .. " has spawned BFM Adversary."
     if MISSIONSRS.Radio then -- if MISSIONSRS radio object has been created, send message via default broadcast.
       MISSIONSRS:SendRadio(msg,BFMACM.rangeRadio)
     else -- otherwise, send in-game text message

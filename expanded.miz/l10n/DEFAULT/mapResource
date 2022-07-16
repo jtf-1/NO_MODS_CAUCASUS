@@ -1,0 +1,6 @@
+mapResource = 
+{
+    ["ResKey_Action_1779"] = "NO_MODS_CAUCASUS.lua",
+    ["ResKey_Action_3132"] = "Moose_.lua",
+    ["ResKey_ImageBriefing_832"] = "JTF-1_Patch_Logo.png",
+} -- end of mapResource

@@ -96,7 +96,7 @@ function ADMIN:BuildAdminMenu(unit,playername)
     local testMenu = MENU_GROUP:New(adminGroup, "Test", adminMenu)
     for i, menuCommand in ipairs(ADMIN.missionList) do
       MENU_GROUP_COMMAND:New( adminGroup, menuCommand.menuText, adminMenu, ADMIN.LoadMission, self, playername, menuCommand.missionFlagValue )
-      MENU_GROUP_COMMAND:New( adminGroup, "SRS Broadcast test", testMenu, MISSIONSRS.SendRadio, MISSIONSRS, "99 all players, test broadcast over default radio.")
+      MENU_GROUP_COMMAND:New( adminGroup, "SRS Broadcast test", testMenu, MISSIONSRS.SendRadio, MISSIONSRS, "All Players, test broadcast over default radio.")
     end
   end
 end
