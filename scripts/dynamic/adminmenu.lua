@@ -33,6 +33,8 @@ ADMIN.missionList = { -- List of missions for load mission menu commands
   {menuText = "Restart current mission", missionFlagValue = 0},
   {menuText = "Load DAY Caucasus", missionFlagValue = 1},
   {menuText = "Load NIGHT Caucasus", missionFlagValue = 2},
+  {menuText = "Load WEATHER DAY Caucasus", missionFlagValue = 3},
+  {menuText = "Load WEATHER NIGHT Caucasus", missionFlagValue = 4},
 }
 
 function ADMIN:GetPlayerUnitAndName(unitName)
